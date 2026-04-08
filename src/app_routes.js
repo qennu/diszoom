@@ -64,6 +64,21 @@ function normalizeChannelType(type) {
   return "text";
 }
 
+function normalizeAttachments(rawAttachments) {
+  if (!Array.isArray(rawAttachments)) return [];
+  return rawAttachments
+    .map(item => {
+      if (!item || typeof item !== "object") return null;
+      const name = typeof item.name === "string" ? item.name.slice(0, 200) : "file";
+      const type = typeof item.type === "string" ? item.type.slice(0, 120) : "application/octet-stream";
+      const url = typeof item.url === "string" ? item.url : "";
+      const size = Number.isFinite(item.size) ? Math.max(0, Math.floor(item.size)) : 0;
+      if (!url.startsWith("data:")) return null;
+      return { id: randomUUID(), name, type, size, url };
+    })
+    .filter(Boolean);
+}
+
 function getLastMessage(server) {
   if (!server.messages) return null;
   let last = null;
@@ -445,15 +460,21 @@ export function registerAppRoutes(app) {
   });
 
   app.post("/app/servers/:id/messages", auth, (req, res) => {
-    const { channelId, text } = req.body || {};
+    const { channelId, text, attachments } = req.body || {};
     const state = getAppState();
     const server = state.servers.find(s => s.id === req.params.id);
     if (!server || !ensureMember(server, req.user.id)) {
       return res.status(404).json({ error: "server not found" });
     }
+    const normalizedText = typeof text === "string" ? text.trim() : "";
+    const normalizedAttachments = normalizeAttachments(attachments);
+    if (!normalizedText && normalizedAttachments.length === 0) {
+      return res.status(400).json({ error: "message is empty" });
+    }
     const msg = {
       id: randomUUID(),
-      text,
+      text: normalizedText,
+      attachments: normalizedAttachments,
       author: req.user.username,
       ts: Date.now(),
       channelId

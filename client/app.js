@@ -171,9 +171,6 @@ async function refreshServers() {
 }
 
 async function selectServer(serverId) {
-  if (activeServer && activeServer.id !== serverId) {
-    disconnectMedia();
-  }
   const data = await api(`/app/servers/${serverId}`);
   activeServer = {
     ...data,
@@ -274,9 +271,6 @@ function renderChannels() {
       item.className = "channel-item" + (activeChannel?.id === ch.id ? " active" : "");
       item.textContent = ch.name;
       item.addEventListener("click", () => {
-        if (activeChannel && activeChannel.id !== ch.id && activeChannel.type !== "text") {
-          disconnectMedia();
-        }
         activeChannel = ch;
         renderPanel();
         renderChannels();

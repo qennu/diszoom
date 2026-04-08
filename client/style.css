@@ -360,11 +360,79 @@ button.danger {
   display: block;
 }
 
+.message-attachments {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.attachment-item {
+  display: grid;
+  gap: 6px;
+}
+
+.attachment-image,
+.attachment-video {
+  max-width: min(420px, 100%);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.attachment-audio {
+  width: min(420px, 100%);
+}
+
+.attachment-link {
+  color: #9aa2ff;
+  text-decoration: none;
+}
+
+.attachment-link:hover {
+  text-decoration: underline;
+}
+
+.attachment-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pending-attachments {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pending-attachment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
 .message-input {
   display: grid;
-  grid-template-columns: 1fr 120px;
+  grid-template-columns: 44px 1fr 120px;
   gap: 10px;
   margin-top: 12px;
+}
+
+.attach-btn {
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b1022;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  font-size: 18px;
+}
+
+.attach-btn input {
+  display: none;
 }
 
 .message-input input {
@@ -506,7 +574,17 @@ button.danger {
   color: var(--muted);
 }
 
-.hidden { display: none; }
+.hidden { display: none !important; }
+
+.auth-title {
+  margin: 0;
+  font-size: 28px;
+}
+
+.auth-subtitle {
+  margin: 0;
+  color: var(--muted);
+}
 
 .tabs {
   display: grid;
@@ -527,6 +605,16 @@ button.danger {
 .form {
   display: grid;
   gap: 8px;
+}
+
+.auth-switch {
+  background: transparent;
+  border: 0;
+  color: #aeb5ff;
+  cursor: pointer;
+  padding: 0;
+  justify-self: start;
+  text-decoration: underline;
 }
 
 label.inline {

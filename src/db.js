@@ -13,10 +13,18 @@ const { Pool } = pg;
 let pool = null;
 let initPromise = null;
 
+function resolvePassword() {
+  if (typeof PGPASSWORD === "string") return PGPASSWORD;
+  if (PGPASSWORD === null || PGPASSWORD === undefined) return "";
+  return String(PGPASSWORD);
+}
+
 function getPoolConfig() {
+  const password = resolvePassword();
   if (DATABASE_URL) {
     return {
       connectionString: DATABASE_URL,
+      password,
       ssl: PGSSL ? { rejectUnauthorized: false } : undefined
     };
   }
@@ -24,7 +32,7 @@ function getPoolConfig() {
     host: PGHOST,
     port: PGPORT,
     user: PGUSER,
-    password: PGPASSWORD,
+    password,
     database: PGDATABASE,
     ssl: PGSSL ? { rejectUnauthorized: false } : undefined
   };

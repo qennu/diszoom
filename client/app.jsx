@@ -37,6 +37,7 @@ function App() {
   const [inviteInfo, setInviteInfo] = useState("");
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState([]);
   const [showEnableAudio, setShowEnableAudio] = useState(false);
   const [mediaConnected, setMediaConnected] = useState(false);
   const [mediaMicEnabled, setMediaMicEnabled] = useState(true);
@@ -54,6 +55,7 @@ function App() {
   const [authLoginPass, setAuthLoginPass] = useState("");
   const [authRegisterUser, setAuthRegisterUser] = useState("");
   const [authRegisterPass, setAuthRegisterPass] = useState("");
+  const [authRegisterPassConfirm, setAuthRegisterPassConfirm] = useState("");
   const [serverName, setServerName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [channelName, setChannelName] = useState("");
@@ -80,6 +82,7 @@ function App() {
   const activeChannelRef = useRef(null);
   const mediaRemoteRef = useRef(null);
   const mediaLocalRef = useRef(null);
+  const attachmentInputRef = useRef(null);
 
   if (!mediaRef.current) {
     mediaRef.current = initialMedia();
@@ -321,6 +324,25 @@ function App() {
     return msg;
   }
 
+  function formatBytes(size) {
+    const val = Number(size) || 0;
+    if (val < 1024) return `${val} B`;
+    if (val < 1024 * 1024) return `${(val / 1024).toFixed(1)} KB`;
+    return `${(val / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function isImageAttachment(att) {
+    return typeof att?.type === "string" && att.type.startsWith("image/");
+  }
+
+  function isVideoAttachment(att) {
+    return typeof att?.type === "string" && att.type.startsWith("video/");
+  }
+
+  function isAudioAttachment(att) {
+    return typeof att?.type === "string" && att.type.startsWith("audio/");
+  }
+
   async function loadMediaPeers(serverId, channelId) {
     if (!serverId || !channelId) return;
     try {
@@ -390,9 +412,6 @@ function App() {
   }
 
   async function selectServer(serverId, options = {}) {
-    if (mediaConnectionRef.current.serverId && mediaConnectionRef.current.serverId !== serverId) {
-      disconnectMedia({ clearStored: true });
-    }
     const normalized = await fetchServer(serverId);
     await applyServerState(normalized, options.preferredChannelId);
     if (!options.skipVisit) {
@@ -465,6 +484,22 @@ function App() {
     setToken(data.token);
     localStorage.setItem(TOKEN_KEY, data.token);
     setModal("");
+  }
+
+  async function submitRegister() {
+    const username = authRegisterUser.trim();
+    const password = authRegisterPass.trim();
+    const confirm = authRegisterPassConfirm.trim();
+    if (!username || !password || !confirm) {
+      alert("Заполните все поля регистрации.");
+      return;
+    }
+    if (password !== confirm) {
+      alert("Пароли не совпадают.");
+      return;
+    }
+    await register(username, password);
+    setAuthRegisterPassConfirm("");
   }
 
   function logout() {
@@ -600,15 +635,68 @@ function App() {
   async function sendMessage() {
     if (!activeServer || !activeChannel || activeChannel.type !== "text") return;
     const text = messageInput.trim();
-    if (!text) return;
+    if (!text && pendingAttachments.length === 0) return;
     await api(`/app/servers/${activeServer.id}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channelId: activeChannel.id, text })
+      body: JSON.stringify({ channelId: activeChannel.id, text, attachments: pendingAttachments })
     });
     setMessageInput("");
+    setPendingAttachments([]);
+    if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     await refreshServers();
     await loadMessages(activeServer.id, activeChannel.id);
+  }
+
+  async function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("file read failed"));
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleAttachmentPick(evt) {
+    const files = Array.from(evt.target.files || []);
+    if (!files.length) return;
+    try {
+      const maxSize = 10 * 1024 * 1024;
+      const next = [];
+      for (const file of files.slice(0, 5)) {
+        if (file.size > maxSize) {
+          alert(`Файл "${file.name}" больше 10MB и пропущен.`);
+          continue;
+        }
+        const url = await fileToDataUrl(file);
+        next.push({
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          size: file.size,
+          url
+        });
+      }
+      setPendingAttachments(prev => [...prev, ...next].slice(0, 5));
+    } catch (err) {
+      alert(errorMessage(err));
+    } finally {
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    }
+  }
+
+  function removePendingAttachment(id) {
+    setPendingAttachments(prev => prev.filter(att => att.id !== id));
+  }
+
+  function getAudioConstraints() {
+    const base = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    };
+    if (!audioDeviceId) return base;
+    return { ...base, deviceId: { exact: audioDeviceId } };
   }
 
   function mediaRoomIdForChannel(channel) {
@@ -794,7 +882,7 @@ function App() {
     const media = mediaRef.current;
     if (!media.sendTransport || media.audioProducerId) return;
     const constraints = {
-      audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
+      audio: getAudioConstraints(),
       video: false
     };
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -1254,11 +1342,55 @@ function App() {
                     {messages.map(msg => (
                       <div key={msg.id} className="message">
                         <strong>{msg.author}</strong>
-                        <span>{msg.text}</span>
+                        {msg.text ? <span>{msg.text}</span> : null}
+                        {Array.isArray(msg.attachments) && msg.attachments.length > 0 ? (
+                          <div className="message-attachments">
+                            {msg.attachments.map(att => (
+                              <div key={att.id || `${msg.id}-${att.name}`} className="attachment-item">
+                                {isImageAttachment(att) ? (
+                                  <a href={att.url} target="_blank" rel="noreferrer">
+                                    <img src={att.url} alt={att.name} className="attachment-image" />
+                                  </a>
+                                ) : null}
+                                {isVideoAttachment(att) ? (
+                                  <video className="attachment-video" src={att.url} controls />
+                                ) : null}
+                                {isAudioAttachment(att) ? (
+                                  <audio className="attachment-audio" src={att.url} controls />
+                                ) : null}
+                                {!isImageAttachment(att) && !isVideoAttachment(att) && !isAudioAttachment(att) ? (
+                                  <a href={att.url} target="_blank" rel="noreferrer" className="attachment-link">
+                                    📎 {att.name || "file"}
+                                  </a>
+                                ) : null}
+                                <div className="attachment-meta">{att.name || "file"} · {formatBytes(att.size)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
+                  {pendingAttachments.length > 0 ? (
+                    <div className="pending-attachments">
+                      {pendingAttachments.map(att => (
+                        <div key={att.id} className="pending-attachment">
+                          <span>📎 {att.name} ({formatBytes(att.size)})</span>
+                          <button className="ghost" onClick={() => removePendingAttachment(att.id)}>x</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="message-input">
+                    <label className="attach-btn" title="Прикрепить файл">
+                      📎
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleAttachmentPick}
+                      />
+                    </label>
                     <input
                       type="text"
                       placeholder="Type a message..."
@@ -1385,20 +1517,29 @@ function App() {
       <div className={`modal-overlay${modal ? "" : " hidden"}`} onClick={closeModal}></div>
 
       <div className={`modal${modal === "auth" ? "" : " hidden"}`}>
-        <h2>Welcome</h2>
-        <div className="tabs">
-          <button className={`tab${authMode === "login" ? " active" : ""}`} onClick={() => setAuthMode("login")}>Login</button>
-          <button className={`tab${authMode === "register" ? " active" : ""}`} onClick={() => setAuthMode("register")}>Register</button>
-        </div>
+        <h2 className="auth-title">{authMode === "login" ? "Вход" : "Регистрация"}</h2>
+        <p className="auth-subtitle">
+          {authMode === "login"
+            ? "Введите логин и пароль."
+            : "Создайте новый аккаунт."}
+        </p>
         <div className={`form${authMode === "login" ? "" : " hidden"}`}>
-          <input type="text" placeholder="Username" value={authLoginUser} onChange={e => setAuthLoginUser(e.target.value)} />
-          <input type="password" placeholder="Password" value={authLoginPass} onChange={e => setAuthLoginPass(e.target.value)} />
-          <button className="primary" onClick={() => login(authLoginUser.trim(), authLoginPass.trim())}>Login</button>
+          <input type="text" placeholder="Логин" value={authLoginUser} onChange={e => setAuthLoginUser(e.target.value)} />
+          <input type="password" placeholder="Пароль" value={authLoginPass} onChange={e => setAuthLoginPass(e.target.value)} />
+          <button className="primary" onClick={() => login(authLoginUser.trim(), authLoginPass.trim())}>Войти</button>
+          <button className="auth-switch" onClick={() => setAuthMode("register")}>Зарегистрироваться</button>
         </div>
         <div className={`form${authMode === "register" ? "" : " hidden"}`}>
-          <input type="text" placeholder="Username" value={authRegisterUser} onChange={e => setAuthRegisterUser(e.target.value)} />
-          <input type="password" placeholder="Password" value={authRegisterPass} onChange={e => setAuthRegisterPass(e.target.value)} />
-          <button className="primary" onClick={() => register(authRegisterUser.trim(), authRegisterPass.trim())}>Register</button>
+          <input type="text" placeholder="Новый логин" value={authRegisterUser} onChange={e => setAuthRegisterUser(e.target.value)} />
+          <input type="password" placeholder="Новый пароль" value={authRegisterPass} onChange={e => setAuthRegisterPass(e.target.value)} />
+          <input
+            type="password"
+            placeholder="Подтверждение пароля"
+            value={authRegisterPassConfirm}
+            onChange={e => setAuthRegisterPassConfirm(e.target.value)}
+          />
+          <button className="primary" onClick={submitRegister}>Создать аккаунт</button>
+          <button className="auth-switch" onClick={() => setAuthMode("login")}>У меня уже есть аккаунт</button>
         </div>
       </div>
 
