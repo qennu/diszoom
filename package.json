@@ -11,8 +11,8 @@
     "start": "node src/server.js",
     "build:client": "node scripts/build-client.mjs",
     "test": "npm run test:backend && npm run test:frontend",
-    "test:backend": "node --test \"src/tests/*.test.js\"",
-    "test:frontend": "node --test \"client/tests/*.test.js\""
+    "test:backend": "node scripts/run-tests.mjs src/tests",
+    "test:frontend": "node scripts/run-tests.mjs client/tests"
   },
   "dependencies": {
     "express": "^4.19.2",
