@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { permanentRooms, sessionRooms } from "../src/state.js";
-import { getRoomType } from "../src/rooms.js";
-import { nowIso } from "../src/utils.js";
+import { permanentRooms, sessionRooms } from "../state.js";
+import { getRoomType } from "../rooms.js";
+import { nowIso } from "../utils.js";
 
 test.beforeEach(() => {
   permanentRooms.clear();

@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node src/server.js",
     "build:client": "node scripts/build-client.mjs",
-    "test": "node --test --test-isolation=none"
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "node --test --test-isolation=none \"src/tests/*.test.js\"",
+    "test:frontend": "node --test --test-isolation=none \"client/tests/*.test.js\""
   },
   "dependencies": {
     "express": "^4.19.2",
