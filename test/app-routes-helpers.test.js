@@ -9,7 +9,7 @@ import {
   normalizeAttachments,
   getLastMessage,
   serverSummary
-} from "../app_routes.js";
+} from "../src/app_routes.js";
 
 test("hashPassword returns deterministic SHA-256 hash", () => {
   const a = hashPassword("secret");

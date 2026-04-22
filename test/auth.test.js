@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ADMIN_TOKEN } from "../config.js";
-import { permanentRooms, sessionRooms } from "../state.js";
-import { metrics } from "../metrics.js";
+import { ADMIN_TOKEN } from "../src/config.js";
+import { permanentRooms, sessionRooms } from "../src/state.js";
+import { metrics } from "../src/metrics.js";
 import {
   getAuthTokenFromReq,
   requireAdmin,
   canJoinRoom
-} from "../auth.js";
+} from "../src/auth.js";
 
 function makeReq(headers = {}) {
   return { headers };
